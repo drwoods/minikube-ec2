@@ -1,0 +1,210 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata:
+  License: Apache-2.0
+  BasedUpon: 'https://github.com/drwoods/minikube-ec2//blob/master/deploy/cloudformation.yaml'
+Description: 'Create an Amazon EC2 Instance from a Spot Fleet of instance types with 8GB of memory
+  running the Amazon Linux v2 AMI. The AMI is chosen based on the region in which the stack is run.
+  The stack uses an EC2 security group that allows SSH to minikube/kubectl and HTTP access for Ingress controller.'
+
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair.
+  RootVolumeSize:
+    Description: The size in GiB that you want for the root volume
+    Type: String
+    Default: 25
+    AllowedPattern: (\d{2,3})
+    ConstraintDescription: Must be a valid Integer between 10 and 999
+  IngressCidr:
+    Description: The IP address range that can access the SSH and HTTP ports (HTTPS is open to ALL)
+    Type: String
+    MinLength: 9
+    MaxLength: 18
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+  LatestAmiId:
+    Description: The AMI Id to use for this instance (defaults to latest Amazon v2 Linux AMI)
+    Type:  'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    ConstraintDescription: Must be a valid EC2 Image Id for the region
+  IamSpotFleetRole:
+    Description: The ARN of an IAM Role that grants the Spot fleet the ability to bid on, launch, and terminate instances on your behalf
+    Type:  String
+    Default: 'arn:aws:iam::846979918817:role/aws-ec2-spot-fleet-tagging-role'
+    ConstraintDescription: Must be the fully qualified ARN for an existing IAM Role
+
+Resources:
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable access to SSH, Cluster API (8443) and Ingress (HTTP) ports
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref 'IngressCidr'
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !Ref 'IngressCidr'
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: '0.0.0.0/0'
+      - IpProtocol: tcp
+        FromPort: 8001
+        ToPort: 8001
+        CidrIp: !Ref 'IngressCidr'
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackName'
+  SpotInstance:
+    Type: AWS::EC2::SpotFleet
+    Properties:
+      IamFleetRole: !Ref 'IamSpotFleetRole'
+      TargetCapacity: 1
+      TerminateInstancesWithExpiration: true
+      LaunchSpecifications:
+      - ImageId: !Ref 'LatestAmiId'
+        InstanceType: t3.large
+        KeyName: !Ref 'KeyName'
+        EbsOptimized: true
+        Monitoring:
+          Enabled: true
+        BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeType: gp2
+            VolumeSize:
+              Ref: 'RootVolumeSize'
+        SecurityGroups:
+        - GroupId: !Ref 'InstanceSecurityGroup'
+        TagSpecifications:
+        - ResourceType: instance
+          Tags:
+          - Key: Application
+            Value: !Ref 'AWS::StackName'
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            cd /home/ec2-user
+            curl -Lo install-alv2.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/install-alv2.sh
+            chmod +x install-alv2.sh
+            ./install-alv2.sh
+            curl -Lo minikube-ec2user.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-ec2user.sh
+            chmod +x minikube-ec2user.sh
+            su ec2-user -c "./minikube-ec2user.sh"
+            curl -Lo minikube-extras.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-extras.sh
+            chmod +x minikube-extras.sh
+            su ec2-user -c "./minikube-extras.sh"
+      - ImageId: !Ref 'LatestAmiId'
+        InstanceType: m5.large
+        KeyName: !Ref 'KeyName'
+        EbsOptimized: true
+        Monitoring:
+          Enabled: true
+        BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeType: gp2
+            VolumeSize:
+              Ref: 'RootVolumeSize'
+        SecurityGroups:
+        - GroupId: !Ref 'InstanceSecurityGroup'
+        TagSpecifications:
+        - ResourceType: instance
+          Tags:
+          - Key: Application
+            Value: !Ref 'AWS::StackName'
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            cd /home/ec2-user
+            curl -Lo install-alv2.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/install-alv2.sh
+            chmod +x install-alv2.sh
+            ./install-alv2.sh
+            curl -Lo minikube-ec2user.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-ec2user.sh
+            chmod +x minikube-ec2user.sh
+            su ec2-user -c "./minikube-ec2user.sh"
+            curl -Lo minikube-extras.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-extras.sh
+            chmod +x minikube-extras.sh
+            su ec2-user -c "./minikube-extras.sh"
+      - ImageId: !Ref 'LatestAmiId'
+        InstanceType: t2.large
+        KeyName: !Ref 'KeyName'
+        Monitoring:
+          Enabled: true
+        BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeType: gp2
+            VolumeSize:
+              Ref: 'RootVolumeSize'
+        SecurityGroups:
+        - GroupId: !Ref 'InstanceSecurityGroup'
+        TagSpecifications:
+        - ResourceType: instance
+          Tags:
+          - Key: Application
+            Value: !Ref 'AWS::StackName'
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            cd /home/ec2-user
+            curl -Lo install-alv2.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/install-alv2.sh
+            chmod +x install-alv2.sh
+            ./install-alv2.sh
+            curl -Lo minikube-ec2user.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-ec2user.sh
+            chmod +x minikube-ec2user.sh
+            su ec2-user -c "./minikube-ec2user.sh"
+            curl -Lo minikube-extras.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-extras.sh
+            chmod +x minikube-extras.sh
+            su ec2-user -c "./minikube-extras.sh"
+      - ImageId: !Ref 'LatestAmiId'
+        InstanceType: m4.large
+        KeyName: !Ref 'KeyName'
+        EbsOptimized: true
+        Monitoring:
+          Enabled: true
+        BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeType: gp2
+            VolumeSize:
+              Ref: 'RootVolumeSize'
+        SecurityGroups:
+        - GroupId: !Ref 'InstanceSecurityGroup'
+        TagSpecifications:
+        - ResourceType: instance
+          Tags:
+          - Key: Application
+            Value: !Ref 'AWS::StackName'
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            cd /home/ec2-user
+            curl -Lo install-alv2.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/install-alv2.sh
+            chmod +x install-alv2.sh
+            ./install-alv2.sh
+            curl -Lo minikube-ec2user.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-ec2user.sh
+            chmod +x minikube-ec2user.sh
+            su ec2-user -c "./minikube-ec2user.sh"
+            curl -Lo minikube-extras.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-extras.sh
+            chmod +x minikube-extras.sh
+            su ec2-user -c "./minikube-extras.sh"
+
+Outputs:
+  InstanceId:
+    Description: InstanceId of the newly created EC2 instance
+    Value: !Ref 'SpotInstance'

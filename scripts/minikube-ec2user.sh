@@ -17,10 +17,12 @@ source ~/.bash_profile
 mkdir ~/.kube && touch ~/.kube/config
 mkdir ~/.minikube
 
-sudo -E minikube start --vm-driver=none --apiserver-ips 127.0.0.1 --apiserver-name localhost --kubernetes-version=v1.11.9
+#sudo -E minikube start --vm-driver=none --apiserver-ips 127.0.0.1 --apiserver-name localhost --kubernetes-version=v1.11.9
+sudo -E minikube start --vm-driver=none
 
 # Update hosts file
 echo "$(sudo -E minikube ip) $(hostname)" | sudo tee -a /etc/hosts
+echo "$(sudo -E minikube ip) minikube" | sudo tee -a /etc/hosts
 
 # Update file ownership
 sudo chown -R ec2-user:ec2-user /home/ec2-user/.minikube

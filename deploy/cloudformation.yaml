@@ -24,7 +24,7 @@ Parameters:
   RootVolumeSize:
     Description: The size in GiB that you want for the root volume
     Type: String
-    Default: 20
+    Default: 25
     AllowedPattern: (\d{2,3})
     ConstraintDescription: must be a valid Integer between 10 and 999
   IngressCidr:
@@ -39,6 +39,7 @@ Parameters:
     Description: The AMI Id to use for this instance (defaults to latest Amazon v2 Linux AMI)
     Type:  'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    ConstraintDescription: Must be a valid EC2 Image Id for the region
 
 Resources:
   InstanceSecurityGroup:
@@ -58,6 +59,10 @@ Resources:
         FromPort: 443
         ToPort: 443
         CidrIp: '0.0.0.0/0'
+      - IpProtocol: tcp
+        FromPort: 8001
+        ToPort: 8001
+        CidrIp: !Ref 'IngressCidr'
       Tags:
         - Key: Application
           Value: !Ref 'AWS::StackName'
@@ -83,8 +88,16 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          curl -Lo install-minikube.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/install-minikube.sh
-          chmod +x install-minikube.sh && ./install-minikube.sh
+          cd /home/ec2-user
+          curl -Lo install-alv2.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/install-alv2.sh
+          chmod +x install-alv2.sh
+          ./install-alv2.sh
+          curl -Lo minikube-ec2user.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-ec2user.sh
+          chmod +x minikube-ec2user.sh
+          su ec2-user -c "./minikube-ec2user.sh"
+          curl -Lo minikube-extras.sh https://raw.githubusercontent.com/drwoods/minikube-ec2/master/scripts/minikube-extras.sh
+          chmod +x minikube-extras.sh
+          su ec2-user -c "./minikube-extras.sh"
 
 Outputs:
   InstanceId:
